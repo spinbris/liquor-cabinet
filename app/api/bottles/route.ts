@@ -15,17 +15,17 @@ export async function POST(request: NextRequest) {
       .gt("quantity", 0)
       .limit(1);
 
-    const existing = existingList && existingList.length > 0 ? existingList[0] : null;
-
     let resultBottle;
 
-    if (existing) {
+    if (existingList && existingList.length > 0) {
+      const existing = existingList[0];
+      const currentQty = existing.quantity ?? 1;
+      
       // Increment quantity of existing bottle
-      const newQuantity = (existing.quantity || 1) + 1;
       const { data, error } = await supabase
         .from("bottles")
         .update({ 
-          quantity: newQuantity,
+          quantity: currentQty + 1,
           updated_at: new Date().toISOString()
         })
         .eq("id", existing.id)
