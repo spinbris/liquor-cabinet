@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import { BottleInsert } from "@/lib/database.types";
 
-interface ExistingBottle {
-  id: string;
-  quantity: number;
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,13 +18,13 @@ export async function POST(request: NextRequest) {
       .ilike("brand", bottle.brand)
       .ilike("product_name", bottle.product_name)
       .gt("quantity", 0)
-      .limit(1) as { data: ExistingBottle[] | null };
+      .limit(1);
 
     let resultBottle;
 
     if (existingList && existingList.length > 0) {
       const existing = existingList[0];
-      const currentQty = existing.quantity ?? 1;
+      const currentQty = (existing as any).quantity ?? 1;
       
       // Increment quantity of existing bottle
       const { data, error } = await supabase
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
           quantity: currentQty + 1,
           updated_at: new Date().toISOString()
         })
-        .eq("id", existing.id)
+        .eq("id", (existing as any).id)
         .select()
         .single();
 
@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
 
     // Create inventory event
     await supabase.from("inventory_events").insert({
-      bottle_id: resultBottle!.id,
-      event_type: "added" as const,
+      bottle_id: (resultBottle as any).id,
+      event_type: "added",
       quantity_change: 1,
     });
 
