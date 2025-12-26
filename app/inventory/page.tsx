@@ -52,13 +52,17 @@ export default function InventoryPage() {
     other: "🍾 Other",
   };
 
+  // Calculate total bottles (sum of quantities)
+  const totalBottles = bottles.reduce((sum, b) => sum + b.quantity, 0);
+
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-neutral-100">Inventory</h1>
           <p className="text-neutral-400">
-            {bottles.length} bottle{bottles.length !== 1 ? "s" : ""} in your cabinet
+            {totalBottles} bottle{totalBottles !== 1 ? "s" : ""} in your cabinet
+            {bottles.length !== totalBottles && ` (${bottles.length} unique)`}
           </p>
         </div>
         <a
@@ -132,8 +136,15 @@ export default function InventoryPage() {
                 {categoryBottles.map((bottle) => (
                   <div
                     key={bottle.id}
-                    className="p-4 rounded-xl border border-neutral-800 bg-neutral-900/50 hover:bg-neutral-800/50 transition-colors"
+                    className="relative p-4 rounded-xl border border-neutral-800 bg-neutral-900/50 hover:bg-neutral-800/50 transition-colors"
                   >
+                    {/* Quantity Badge */}
+                    {bottle.quantity > 1 && (
+                      <div className="absolute top-2 right-2 bg-amber-500 text-neutral-900 text-sm font-bold px-2 py-0.5 rounded-full">
+                        ×{bottle.quantity}
+                      </div>
+                    )}
+
                     {/* Bottle Image */}
                     {bottle.image_url ? (
                       <img

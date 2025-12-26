@@ -6,28 +6,65 @@ export async function POST(request: NextRequest) {
   try {
     const bottle: BottleInsert = await request.json();
 
-    const { data, error } = await supabase
+    // Check if bottle with same brand + product_name already exists
+    const { data: existingList } = await supabase
       .from("bottles")
-      .insert(bottle)
-      .select()
-      .single();
+      .select("id, quantity")
+      .ilike("brand", bottle.brand)
+      .ilike("product_name", bottle.product_name)
+      .gt("quantity", 0)
+      .limit(1);
 
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      );
+    const existing = existingList && existingList.length > 0 ? existingList[0] : null;
+
+    let resultBottle;
+
+    if (existing) {
+      // Increment quantity of existing bottle
+      const { data, error } = await supabase
+        .from("bottles")
+        .update({ 
+          quantity: existing.quantity + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Supabase error:", error);
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: 500 }
+        );
+      }
+      resultBottle = data;
+    } else {
+      // Create new bottle record
+      const { data, error } = await supabase
+        .from("bottles")
+        .insert(bottle)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Supabase error:", error);
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: 500 }
+        );
+      }
+      resultBottle = data;
     }
 
-    // Also create an inventory event
+    // Create inventory event
     await supabase.from("inventory_events").insert({
-      bottle_id: data.id,
+      bottle_id: resultBottle.id,
       event_type: "added",
       quantity_change: 1,
     });
 
-    return NextResponse.json({ success: true, bottle: data });
+    return NextResponse.json({ success: true, bottle: resultBottle });
   } catch (error) {
     console.error("Add bottle error:", error);
     return NextResponse.json(
