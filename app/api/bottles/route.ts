@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { BottleInsert } from "@/lib/database.types";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
 
 export async function POST(request: NextRequest) {
+  const supabase = getSupabase();
+  
   try {
     const bottle: BottleInsert = await request.json();
 
@@ -81,6 +85,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
+  const supabase = getSupabase();
+  
   try {
     const { data, error } = await supabase
       .from("bottles")
