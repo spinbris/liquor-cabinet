@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { BottleInsert } from "@/lib/database.types";
 
+interface ExistingBottle {
+  id: string;
+  quantity: number;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const bottle: BottleInsert = await request.json();
@@ -13,7 +18,7 @@ export async function POST(request: NextRequest) {
       .ilike("brand", bottle.brand)
       .ilike("product_name", bottle.product_name)
       .gt("quantity", 0)
-      .limit(1);
+      .limit(1) as { data: ExistingBottle[] | null };
 
     let resultBottle;
 
@@ -60,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Create inventory event
     await supabase.from("inventory_events").insert({
-      bottle_id: resultBottle.id,
+      bottle_id: resultBottle!.id,
       event_type: "added" as const,
       quantity_change: 1,
     });
