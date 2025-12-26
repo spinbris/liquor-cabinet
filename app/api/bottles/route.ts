@@ -21,10 +21,11 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       // Increment quantity of existing bottle
+      const newQuantity = (existing.quantity || 1) + 1;
       const { data, error } = await supabase
         .from("bottles")
         .update({ 
-          quantity: existing.quantity + 1,
+          quantity: newQuantity,
           updated_at: new Date().toISOString()
         })
         .eq("id", existing.id)
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
     // Create inventory event
     await supabase.from("inventory_events").insert({
       bottle_id: resultBottle.id,
-      event_type: "added",
+      event_type: "added" as const,
       quantity_change: 1,
     });
 
