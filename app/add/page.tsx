@@ -12,6 +12,7 @@ export default function AddBottlePage() {
   const [result, setResult] = useState<BottleIdentification | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [quantity, setQuantity] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -23,6 +24,7 @@ export default function AddBottlePage() {
         setResult(null);
         setError(null);
         setSuccess(false);
+        setQuantity(1);
       };
       reader.readAsDataURL(file);
     }
@@ -77,7 +79,8 @@ export default function AddBottlePage() {
           size_ml: result.sizeMl || null,
           description: result.description || null,
           tasting_notes: result.tastingNotes || null,
-          image_url: image, // Store the base64 image for now
+          image_url: image,
+          quantity: quantity,
         }),
       });
 
@@ -85,7 +88,6 @@ export default function AddBottlePage() {
 
       if (data.success) {
         setSuccess(true);
-        // Reset after short delay to show success
         setTimeout(() => {
           router.push("/inventory");
         }, 1500);
@@ -104,6 +106,7 @@ export default function AddBottlePage() {
     setResult(null);
     setError(null);
     setSuccess(false);
+    setQuantity(1);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -123,7 +126,7 @@ export default function AddBottlePage() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            Bottle added to your cabinet! Redirecting...
+            {quantity > 1 ? `${quantity} bottles` : "Bottle"} added to your cabinet! Redirecting...
           </p>
         </div>
       )}
@@ -285,6 +288,29 @@ export default function AddBottlePage() {
             </div>
           )}
 
+          {/* Quantity Selector */}
+          <div className="p-4 bg-neutral-900/50 rounded-lg border border-neutral-800">
+            <p className="text-neutral-400 text-sm text-center mb-3">How many are you adding?</p>
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                disabled={quantity <= 1}
+                className="w-10 h-10 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800 disabled:opacity-50 text-xl font-bold"
+              >
+                −
+              </button>
+              <span className="text-3xl font-bold text-neutral-100 w-12 text-center">
+                {quantity}
+              </span>
+              <button
+                onClick={() => setQuantity(q => q + 1)}
+                className="w-10 h-10 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800 text-xl font-bold"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button
@@ -313,7 +339,7 @@ export default function AddBottlePage() {
                   Adding...
                 </span>
               ) : (
-                "Add to Cabinet"
+                `Add ${quantity} to Cabinet`
               )}
             </button>
             <button

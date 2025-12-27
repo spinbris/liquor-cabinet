@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
   const supabase = getSupabase();
   
   try {
-    const bottle: BottleInsert = await request.json();
+    const bottle: BottleInsert & { quantity?: number } = await request.json();
+    const addQuantity = bottle.quantity || 1;
 
     // Check if bottle with same brand + product_name already exists
     const { data: existingList } = await supabase
@@ -28,13 +29,13 @@ export async function POST(request: NextRequest) {
 
     if (existingList && existingList.length > 0) {
       const existing = existingList[0];
-      const currentQty = (existing as any).quantity ?? 1;
+      const currentQty = (existing as any).quantity ?? 0;
       
-      // Increment quantity of existing bottle
+      // Increment quantity of existing bottle by the amount being added
       const { data, error } = await supabase
         .from("bottles")
         .update({ 
-          quantity: currentQty + 1,
+          quantity: currentQty + addQuantity,
           updated_at: new Date().toISOString()
         })
         .eq("id", (existing as any).id)
@@ -50,10 +51,13 @@ export async function POST(request: NextRequest) {
       }
       resultBottle = data;
     } else {
-      // Create new bottle record
+      // Create new bottle record with the specified quantity
       const { data, error } = await supabase
         .from("bottles")
-        .insert(bottle)
+        .insert({
+          ...bottle,
+          quantity: addQuantity,
+        })
         .select()
         .single();
 
@@ -67,11 +71,11 @@ export async function POST(request: NextRequest) {
       resultBottle = data;
     }
 
-    // Create inventory event
+    // Create inventory event with correct quantity
     await supabase.from("inventory_events").insert({
       bottle_id: (resultBottle as any).id,
       event_type: "added",
-      quantity_change: 1,
+      quantity_change: addQuantity,
     });
 
     return NextResponse.json({ success: true, bottle: resultBottle });
