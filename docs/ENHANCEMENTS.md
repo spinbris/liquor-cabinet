@@ -25,6 +25,8 @@
 - [x] Centralized config file (`lib/config.ts`)
 - [x] Mobile camera support (deployed to Vercel)
 - [x] Dark theme with amber accents
+- [x] Australian English voice recognition
+- [x] Comprehensive documentation (README, CLAUDE.md)
 
 ---
 
@@ -138,8 +140,8 @@ Allow 2-4 photos for difficult-to-read bottles
 - Faster loading
 
 ### Smart Home (Priority: Low)
-- "Hey Siri, what can I make with what's in my bar?"
-- Home Assistant integration
+- Google Nest Hub direct integration (if Google adds website voice commands)
+- Currently works via screen casting from phone
 
 ### Social Features (Priority: Low)
 - Share your bar with friends

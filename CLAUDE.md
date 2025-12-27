@@ -13,6 +13,7 @@ This file provides context for Claude (or other AI assistants) when working on t
 - **Tailwind CSS v4** - uses `@import "tailwindcss"` syntax (not `@tailwind`)
 - **Supabase** - PostgreSQL database, client-side queries only
 - **Claude API** - Vision for bottle ID, text for recipes
+- **Web Speech API** - Browser-native voice recognition
 - **Vercel** - deployment platform
 
 ## Project Structure
@@ -22,11 +23,17 @@ app/                    # Next.js App Router pages
 ├── api/               # API routes (serverless functions)
 │   ├── identify/      # POST - Claude Vision bottle identification
 │   ├── bottles/       # GET/POST bottles, [id] for single bottle ops
-│   ├── recipes/       # GET - AI recipe suggestions
+│   │   └── [id]/
+│   │       ├── route.ts   # GET/PUT/DELETE single bottle
+│   │       └── finish/    # POST - mark bottle as finished
+│   ├── recipes/
+│   │   ├── route.ts       # GET - AI recipe suggestions
+│   │   └── search/        # POST - search specific cocktail
 │   └── stats/         # GET - Dashboard statistics
 ├── add/               # Add bottle page (camera/upload)
 ├── inventory/         # Inventory grid, [id] for detail page
-└── recipes/           # Cocktail recipes page
+├── recipes/           # Cocktail recipes with search + voice
+└── kitchen/           # Kitchen mode (cast-friendly display)
 
 lib/                   # Shared utilities
 ├── config.ts          # Centralized configuration (AI models, units, etc.)
@@ -66,12 +73,18 @@ export async function GET() {
 - Cards: `rounded-xl border border-neutral-800 bg-neutral-900/50`
 - Buttons: `bg-amber-500 hover:bg-amber-600 text-neutral-900`
 
+### Voice Recognition
+- Uses browser's Web Speech API (no external service)
+- Set language to `en-AU` for Australian English
+- Check for support: `window.SpeechRecognition || window.webkitSpeechRecognition`
+- Works on Chrome (Android/Desktop) and Safari (iOS/Mac)
+
 ## Configuration
 
 All configurable values are in `lib/config.ts`:
 - AI model names
 - Token limits
-- Default units (metric/imperial)
+- Default units (metric/imperial) - set to metric for Australia
 - Common mixers list (for recipe matching)
 
 ## Database Schema
@@ -111,8 +124,14 @@ All configurable values are in `lib/config.ts`:
 3. Add link to navigation in `app/layout.tsx` if needed
 
 ### Modifying AI behavior
-1. Edit prompts in API routes (`app/api/identify/route.ts`, `app/api/recipes/route.ts`)
+1. Edit prompts in API routes (`app/api/identify/route.ts`, `app/api/recipes/route.ts`, `app/api/recipes/search/route.ts`)
 2. Change model in `lib/config.ts`
+
+### Adding voice features
+1. Check for `SpeechRecognition` support
+2. Create recognition instance with `lang = "en-AU"`
+3. Handle `onresult`, `onerror`, `onend` events
+4. Update UI state for listening indicator
 
 ## Environment Variables
 
@@ -135,6 +154,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
 2. **Supabase types** - Use `as any` for query results to avoid TypeScript errors
 3. **Image storage** - Currently stores base64 in database (not ideal for large scale)
 4. **No auth** - Single user app, RLS policies allow all access
+5. **Voice recognition** - Not supported on Firefox, gracefully hides mic button
 
 ## Testing Locally
 
@@ -144,6 +164,17 @@ npm run build        # Test production build
 npm run lint         # Run ESLint
 ```
 
+## Pages Overview
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Home dashboard with stats |
+| `/add` | Add bottle via photo |
+| `/inventory` | View all bottles by category |
+| `/inventory/[id]` | Single bottle detail + edit |
+| `/recipes` | AI suggestions + search + voice |
+| `/kitchen` | Cast-friendly display for Nest Hub |
+
 ## Future Enhancements
 
 See `docs/ENHANCEMENTS.md` for planned features including:
@@ -152,3 +183,4 @@ See `docs/ENHANCEMENTS.md` for planned features including:
 - Barcode scanning fallback
 - Consumption analytics with charts
 - PWA install prompt
+- Edit bottle details

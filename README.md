@@ -23,10 +23,18 @@ An AI-powered home bar inventory app that lets you photograph bottles, track you
 
 ### 🍸 Cocktail Recipes
 - AI-generated recipes based on your inventory
-- Shows which spirits you have vs need
+- **Recipe search** - look up any cocktail (e.g., "Garibaldi")
+- **Voice search** - tap 🎤 and say a cocktail name
+- Shows which spirits you have vs need (✓/✗)
 - Real cocktail images from TheCocktailDB
 - Metric/Imperial measurement toggle
 - Difficulty ratings
+
+### 📺 Kitchen Mode
+- **Cast-friendly display** optimized for Google Nest Hub Max
+- Extra large text readable from across the kitchen
+- Voice search while casting from phone
+- Clean, focused recipe view
 
 ### 📊 Dashboard Stats
 - Total bottles in cabinet
@@ -137,6 +145,17 @@ Open [http://localhost:3000](http://localhost:3000)
 
 The app is PWA-capable and works great on mobile for photographing bottles.
 
+## 📺 Using with Google Nest Hub
+
+Kitchen Mode (`/kitchen`) is designed for casting to smart displays:
+
+1. Open the app on your phone, navigate to `/kitchen`
+2. Say "Hey Google, cast my screen"
+3. Tap 🎤 on your phone and say a cocktail name
+4. Recipe displays on the Nest Hub with large, readable text
+
+Note: Google Nest Hub doesn't support opening websites via voice command directly, so casting from your phone is the recommended approach.
+
 ## 🏗️ Project Structure
 
 ```
@@ -152,22 +171,28 @@ liquor-cabinet/
 │   │   └── [id]/
 │   │       └── page.tsx      # Bottle detail page
 │   ├── recipes/
-│   │   └── page.tsx          # Cocktail recipes
+│   │   └── page.tsx          # Cocktail recipes + search + voice
+│   ├── kitchen/
+│   │   └── page.tsx          # Kitchen mode (cast-friendly)
 │   └── api/
 │       ├── identify/         # Claude Vision API
 │       ├── bottles/          # CRUD operations
 │       │   └── [id]/
 │       │       ├── route.ts  # GET/PUT/DELETE
 │       │       └── finish/   # Mark as finished
-│       ├── recipes/          # Recipe generation
+│       ├── recipes/
+│       │   ├── route.ts      # Recipe suggestions
+│       │   └── search/       # Recipe search
 │       └── stats/            # Dashboard stats
 ├── lib/
 │   ├── config.ts             # App configuration
 │   ├── types.ts              # TypeScript interfaces
 │   ├── supabase.ts           # Supabase client
 │   └── database.types.ts     # Database types
-└── docs/
-    └── ENHANCEMENTS.md       # Future roadmap
+├── docs/
+│   └── ENHANCEMENTS.md       # Future roadmap
+├── CLAUDE.md                 # AI assistant instructions
+└── README.md                 # This file
 ```
 
 ## ⚙️ Configuration
@@ -197,6 +222,7 @@ export const config = {
 - **Database:** Supabase (PostgreSQL)
 - **AI:** Claude Sonnet 4 (Anthropic)
 - **Images:** TheCocktailDB API
+- **Voice:** Web Speech API (browser-native)
 - **Hosting:** Vercel
 
 ## 📄 License
