@@ -46,4 +46,11 @@ export const config = {
       "ice",
     ],
   },
+  
+  // Units preference
+  units: {
+    // Default measurement system: "metric" (ml) or "imperial" (oz)
+    // Set to "metric" for Australia
+    default: "metric" as "metric" | "imperial",
+  },
 };

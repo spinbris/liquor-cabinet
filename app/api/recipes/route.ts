@@ -30,6 +30,21 @@ export interface Recipe {
   garnish: string;
   missingSpirits: number;
   category: "can_make" | "almost" | "need_shopping";
+  imageUrl: string | null;
+}
+
+// Fetch cocktail image from TheCocktailDB
+async function getCocktailImage(cocktailName: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://www.thecocktaildb.com/api/json/v1/1/search.php?s=${encodeURIComponent(cocktailName)}`
+    );
+    const data = await response.json();
+    return data.drinks?.[0]?.strDrinkThumb || null;
+  } catch (error) {
+    console.error(`Failed to fetch image for ${cocktailName}:`, error);
+    return null;
+  }
 }
 
 export async function GET() {
@@ -74,6 +89,8 @@ export async function GET() {
 ${bottleList}
 
 Suggest ${config.recipes.suggestionCount} cocktails I can make or almost make. Prioritize cocktails where I have the main spirit(s).
+
+IMPORTANT: Use well-known, classic cocktail names when possible (e.g., "Aperol Spritz", "Piña Colada", "Margarita", "Mojito") so images can be found in cocktail databases.
 
 For each cocktail return a JSON object with:
 {
@@ -128,7 +145,13 @@ Return ONLY a valid JSON array, no markdown, no explanation.`,
       (b.sub_category || b.category || "").toLowerCase()
     );
 
-    const processedRecipes: Recipe[] = rawRecipes.map((recipe: any) => {
+    // Fetch images for all recipes in parallel
+    const imagePromises = rawRecipes.map((recipe: any) => 
+      getCocktailImage(recipe.name)
+    );
+    const images = await Promise.all(imagePromises);
+
+    const processedRecipes: Recipe[] = rawRecipes.map((recipe: any, index: number) => {
       const ingredients: RecipeIngredient[] = recipe.ingredients.map((ing: any) => {
         const itemLower = ing.item.toLowerCase();
         
@@ -171,6 +194,7 @@ Return ONLY a valid JSON array, no markdown, no explanation.`,
         ingredients,
         missingSpirits,
         category,
+        imageUrl: images[index],
       };
     });
 

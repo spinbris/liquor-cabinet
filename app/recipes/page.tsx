@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { config } from "@/lib/config";
 
 interface RecipeIngredient {
   item: string;
@@ -18,6 +19,38 @@ interface Recipe {
   garnish: string;
   missingSpirits: number;
   category: "can_make" | "almost" | "need_shopping";
+  imageUrl: string | null;
+}
+
+// Convert imperial to metric measurements
+function convertMeasure(amount: string, toMetric: boolean): string {
+  if (!toMetric) return amount; // Keep imperial as-is
+  
+  // Convert oz to ml (1 oz ≈ 30ml)
+  let result = amount.replace(/(\d+\.?\d*)\s*oz/gi, (match, num) => {
+    const ml = Math.round(parseFloat(num) * 30);
+    return `${ml}ml`;
+  });
+  
+  // Convert cups to ml (1 cup ≈ 240ml)
+  result = result.replace(/(\d+\.?\d*)\s*cups?/gi, (match, num) => {
+    const ml = Math.round(parseFloat(num) * 240);
+    return `${ml}ml`;
+  });
+  
+  // Convert tablespoons to ml (1 tbsp ≈ 15ml)
+  result = result.replace(/(\d+\.?\d*)\s*(tbsp|tablespoons?)/gi, (match, num) => {
+    const ml = Math.round(parseFloat(num) * 15);
+    return `${ml}ml`;
+  });
+  
+  // Convert teaspoons to ml (1 tsp ≈ 5ml)
+  result = result.replace(/(\d+\.?\d*)\s*(tsp|teaspoons?)/gi, (match, num) => {
+    const ml = Math.round(parseFloat(num) * 5);
+    return `${ml}ml`;
+  });
+  
+  return result;
 }
 
 export default function RecipesPage() {
@@ -26,6 +59,7 @@ export default function RecipesPage() {
   const [error, setError] = useState<string | null>(null);
   const [bottleCount, setBottleCount] = useState(0);
   const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
+  const [useMetric, setUseMetric] = useState(config.units.default === "metric");
 
   useEffect(() => {
     fetchRecipes();
@@ -83,13 +117,25 @@ export default function RecipesPage() {
               : "Add bottles to get personalized suggestions"}
           </p>
         </div>
-        <button
-          onClick={fetchRecipes}
-          disabled={loading}
-          className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-neutral-900 font-semibold py-2 px-4 rounded-lg transition-colors"
-        >
-          {loading ? "Loading..." : "Refresh"}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Units Toggle */}
+          <button
+            onClick={() => setUseMetric(!useMetric)}
+            className="px-3 py-2 border border-neutral-700 text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors text-sm font-medium"
+            title="Toggle units"
+          >
+            {useMetric ? "ml" : "oz"} ⟷ {useMetric ? "oz" : "ml"}
+          </button>
+          
+          {/* Refresh Button */}
+          <button
+            onClick={fetchRecipes}
+            disabled={loading}
+            className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-neutral-900 font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            {loading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {/* Loading State */}
@@ -171,79 +217,108 @@ export default function RecipesPage() {
                   {categoryRecipes.map((recipe) => (
                     <div
                       key={recipe.name}
-                      className="p-6 rounded-xl border border-neutral-800 bg-neutral-900/50 hover:bg-neutral-800/50 transition-colors"
+                      className="rounded-xl border border-neutral-800 bg-neutral-900/50 hover:bg-neutral-800/50 transition-colors overflow-hidden"
                     >
-                      {/* Header */}
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="text-xl font-semibold text-neutral-100">
-                            {recipe.name}
-                          </h3>
-                          <p className="text-neutral-500 text-sm">
-                            {recipe.glassType} • {recipe.garnish}
-                          </p>
-                        </div>
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full ${difficultyColor[recipe.difficulty]}`}
-                        >
-                          {recipe.difficulty}
-                        </span>
-                      </div>
-
-                      {/* Ingredients */}
-                      <div className="space-y-2 mb-4">
-                        {recipe.ingredients.map((ing, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            {ing.have === true && (
-                              <span className="text-green-400">✓</span>
-                            )}
-                            {ing.have === false && (
-                              <span className="text-red-400">✗</span>
-                            )}
-                            {ing.have === null && (
-                              <span className="text-neutral-500">○</span>
-                            )}
-                            <span
-                              className={
-                                ing.have === false
-                                  ? "text-neutral-500"
-                                  : "text-neutral-300"
-                              }
-                            >
-                              {ing.amount} {ing.item}
-                            </span>
-                            {ing.have === false && ing.isSpirit && (
-                              <span className="text-xs text-red-400/70">(need)</span>
-                            )}
+                      {/* Cocktail Image */}
+                      {recipe.imageUrl ? (
+                        <div className="relative h-48 bg-neutral-800">
+                          <img
+                            src={recipe.imageUrl}
+                            alt={recipe.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-neutral-900/80 to-transparent" />
+                          <div className="absolute bottom-3 left-4 right-4">
+                            <h3 className="text-xl font-semibold text-white drop-shadow-lg">
+                              {recipe.name}
+                            </h3>
+                            <p className="text-neutral-300 text-sm drop-shadow">
+                              {recipe.glassType} • {recipe.garnish}
+                            </p>
                           </div>
-                        ))}
-                      </div>
-
-                      {/* Expand/Collapse Instructions */}
-                      <button
-                        onClick={() =>
-                          setExpandedRecipe(
-                            expandedRecipe === recipe.name ? null : recipe.name
-                          )
-                        }
-                        className="text-amber-500 hover:text-amber-400 text-sm font-medium"
-                      >
-                        {expandedRecipe === recipe.name
-                          ? "Hide Instructions ▲"
-                          : "View Instructions ▼"}
-                      </button>
-
-                      {/* Instructions (expanded) */}
-                      {expandedRecipe === recipe.name && (
-                        <div className="mt-4 pt-4 border-t border-neutral-800">
-                          <p className="text-neutral-300 text-sm leading-relaxed">
-                            {recipe.instructions}
-                          </p>
+                          <span
+                            className={`absolute top-3 right-3 text-xs px-2 py-1 rounded-full ${difficultyColor[recipe.difficulty]}`}
+                          >
+                            {recipe.difficulty}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-4 pb-0">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h3 className="text-xl font-semibold text-neutral-100">
+                                {recipe.name}
+                              </h3>
+                              <p className="text-neutral-500 text-sm">
+                                {recipe.glassType} • {recipe.garnish}
+                              </p>
+                            </div>
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${difficultyColor[recipe.difficulty]}`}
+                            >
+                              {recipe.difficulty}
+                            </span>
+                          </div>
                         </div>
                       )}
+
+                      {/* Content */}
+                      <div className="p-4">
+                        {/* Ingredients */}
+                        <div className="space-y-2 mb-4">
+                          {recipe.ingredients.map((ing, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              {ing.have === true && (
+                                <span className="text-green-400">✓</span>
+                              )}
+                              {ing.have === false && (
+                                <span className="text-red-400">✗</span>
+                              )}
+                              {ing.have === null && (
+                                <span className="text-neutral-500">○</span>
+                              )}
+                              <span
+                                className={
+                                  ing.have === false
+                                    ? "text-neutral-500"
+                                    : "text-neutral-300"
+                                }
+                              >
+                                {convertMeasure(ing.amount, useMetric)} {ing.item}
+                              </span>
+                              {ing.have === false && ing.isSpirit && (
+                                <span className="text-xs text-red-400/70">(need)</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Expand/Collapse Instructions */}
+                        <button
+                          onClick={() =>
+                            setExpandedRecipe(
+                              expandedRecipe === recipe.name ? null : recipe.name
+                            )
+                          }
+                          className="text-amber-500 hover:text-amber-400 text-sm font-medium"
+                        >
+                          {expandedRecipe === recipe.name
+                            ? "Hide Instructions ▲"
+                            : "View Instructions ▼"}
+                        </button>
+
+                        {/* Instructions (expanded) */}
+                        {expandedRecipe === recipe.name && (
+                          <div className="mt-4 pt-4 border-t border-neutral-800">
+                            <p className="text-neutral-300 text-sm leading-relaxed">
+                              {recipe.instructions}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
