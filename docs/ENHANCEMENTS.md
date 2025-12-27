@@ -17,6 +17,9 @@
 - [x] Ingredient matching (have ✓ / need ✗)
 - [x] Metric/Imperial toggle
 - [x] Recipe categories (Ready to Make, Almost There, Shopping List)
+- [x] Recipe search ("How do I make X?")
+- [x] Voice search (🎤 microphone input)
+- [x] Kitchen Mode (cast-friendly large display)
 
 ### Technical
 - [x] Centralized config file (`lib/config.ts`)
