@@ -7,6 +7,16 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Strip markdown code blocks if present
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim();
+  // Remove ```json or ``` at start
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "");
+  // Remove ``` at end
+  cleaned = cleaned.replace(/\n?```\s*$/i, "");
+  return cleaned.trim();
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<IdentifyResponse>> {
   try {
     const { image } = await request.json();
@@ -47,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<IdentifyR
             },
             {
               type: "text",
-              text: `Identify this liquor bottle and return ONLY valid JSON (no markdown, no explanation) with these fields:
+              text: `Identify this liquor bottle and return ONLY valid JSON (no markdown, no code blocks, no explanation) with these fields:
 {
   "brand": "Brand name",
   "productName": "Full product name",
@@ -79,8 +89,8 @@ If you cannot identify a liquor bottle in the image, return:
       );
     }
 
-    // Parse JSON response
-    const responseText = textContent.text.trim();
+    // Parse JSON response (strip markdown if present)
+    const responseText = cleanJsonResponse(textContent.text);
     const parsed = JSON.parse(responseText);
 
     if (parsed.error) {

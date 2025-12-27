@@ -14,6 +14,14 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Strip markdown code blocks if present
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "");
+  cleaned = cleaned.replace(/\n?```\s*$/i, "");
+  return cleaned.trim();
+}
+
 export interface RecipeIngredient {
   item: string;
   amount: string;
@@ -111,7 +119,7 @@ Rules:
 - Vary the difficulty levels
 - Keep instructions concise but complete
 
-Return ONLY a valid JSON array, no markdown, no explanation.`,
+Return ONLY a valid JSON array, no markdown, no code blocks, no explanation.`,
         },
       ],
     });
@@ -125,10 +133,11 @@ Return ONLY a valid JSON array, no markdown, no explanation.`,
       );
     }
 
-    // Parse JSON response
+    // Parse JSON response (strip markdown if present)
     let rawRecipes;
     try {
-      rawRecipes = JSON.parse(textContent.text.trim());
+      const cleanedText = cleanJsonResponse(textContent.text);
+      rawRecipes = JSON.parse(cleanedText);
     } catch (parseError) {
       console.error("Failed to parse recipes:", textContent.text);
       return NextResponse.json(

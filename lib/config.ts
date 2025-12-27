@@ -4,10 +4,11 @@ export const config = {
   // AI Model settings
   ai: {
     // Model for bottle identification (needs vision)
-    identifyModel: "claude-sonnet-4-20250514",
+    // Using Haiku for cost efficiency (~10x cheaper than Sonnet)
+    identifyModel: "claude-haiku-4-5-20251001",
     
-    // Model for recipe generation (text only, could use cheaper model)
-    recipeModel: "claude-sonnet-4-20250514",
+    // Model for recipe generation (text only)
+    recipeModel: "claude-haiku-4-5-20251001",
     
     // Token limits
     maxTokens: {
