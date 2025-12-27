@@ -134,9 +134,10 @@ export default function InventoryPage() {
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {categoryBottles.map((bottle) => (
-                  <div
+                  <a
+                    href={`/inventory/${bottle.id}`}
                     key={bottle.id}
-                    className="relative p-4 rounded-xl border border-neutral-800 bg-neutral-900/50 hover:bg-neutral-800/50 transition-colors"
+                    className="relative p-4 rounded-xl border border-neutral-800 bg-neutral-900/50 hover:bg-neutral-800/50 hover:border-amber-500/50 transition-colors cursor-pointer block"
                   >
                     {/* Quantity Badge */}
                     {bottle.quantity > 1 && (
@@ -175,7 +176,7 @@ export default function InventoryPage() {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             </section>
