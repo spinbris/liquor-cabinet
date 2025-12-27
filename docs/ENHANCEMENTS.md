@@ -1,5 +1,30 @@
 # Future Enhancements Roadmap
 
+## ✅ Completed Features
+
+### Core Functionality
+- [x] AI bottle identification with Claude Vision
+- [x] Inventory management with quantities
+- [x] Multi-quantity add (add 3 bottles at once)
+- [x] Bottle detail page with +/- controls
+- [x] Mark as finished (consumption tracking)
+- [x] Delete entries with confirmation
+- [x] Dashboard stats (total bottles, categories, finished this month)
+
+### Recipes
+- [x] AI-powered cocktail suggestions based on inventory
+- [x] Cocktail images from TheCocktailDB
+- [x] Ingredient matching (have ✓ / need ✗)
+- [x] Metric/Imperial toggle
+- [x] Recipe categories (Ready to Make, Almost There, Shopping List)
+
+### Technical
+- [x] Centralized config file (`lib/config.ts`)
+- [x] Mobile camera support (deployed to Vercel)
+- [x] Dark theme with amber accents
+
+---
+
 ## 📸 Image Capture Improvements
 
 ### Back Label Photo (Priority: High)
@@ -17,11 +42,6 @@
 - Better tasting notes from actual label
 - Higher confidence scores
 
-**Implementation Notes:**
-- Modify API to accept array of images
-- Update prompt to handle multi-image input
-- UI: Add "Enhance with back label" button in results view
-
 ---
 
 ### Multiple Angle Photos (Priority: Medium)
@@ -38,16 +58,26 @@ Allow 2-4 photos for difficult-to-read bottles
 
 ## 🗄️ Inventory Features
 
+### Edit Bottle Details (Priority: High)
+- Edit mode on detail page
+- Modify brand, product name, ABV, notes
+- Correct AI misidentifications
+
 ### Batch Import (Priority: High)
 - Photograph entire shelf
 - Claude identifies multiple bottles in one image
 - Quick confirm/add flow for each
 
+### Search & Filter (Priority: Medium)
+- Search by name, brand
+- Filter by category
+- Sort by date added, name, quantity
+
 ### Barcode Scanning Fallback (Priority: Medium)
 - If photo recognition fails, offer barcode scan
 - Query external database (Open Food Facts, UPC databases)
 
-### Dan Murphy's Integration (Priority: Medium)
+### Dan Murphy's Integration (Priority: Low)
 - Paste Dan Murphy's product URL
 - Auto-extract product details from their website
 - Link purchase history via email parsing
@@ -59,6 +89,11 @@ Allow 2-4 photos for difficult-to-read bottles
 ### Ingredient Substitutions (Priority: High)
 - "You're missing X, but you have Y which could work"
 - Claude suggests viable substitutions
+
+### Save Favourite Recipes (Priority: Medium)
+- Star/save recipes you like
+- Quick access to favourites
+- Remember which ones you've made
 
 ### Party Mode (Priority: Medium)
 - "I'm hosting 8 people for a BBQ"
@@ -75,10 +110,16 @@ Allow 2-4 photos for difficult-to-read bottles
 
 ## 📊 Analytics
 
+### Full Stats Page (Priority: High)
+- Consumption chart over time (weekly/monthly)
+- Most consumed spirits
+- Category breakdown (pie chart)
+- Recently finished bottles list
+
 ### Consumption Insights (Priority: Medium)
-- Most used spirits
 - Seasonal trends
 - Cost per drink estimates
+- "You're running low on..." alerts
 
 ### Collection Value (Priority: Low)
 - Estimated total value
@@ -87,6 +128,11 @@ Allow 2-4 photos for difficult-to-read bottles
 ---
 
 ## 🔗 Integrations
+
+### Image Storage (Priority: High)
+- Move from base64 in database to Supabase Storage
+- Reduces database size
+- Faster loading
 
 ### Smart Home (Priority: Low)
 - "Hey Siri, what can I make with what's in my bar?"
@@ -98,19 +144,34 @@ Allow 2-4 photos for difficult-to-read bottles
 
 ---
 
-## Technical Debt / Improvements
+## 📱 Mobile / PWA
+
+### PWA Enhancements (Priority: Medium)
+- Install prompt ("Add to Home Screen")
+- App icon
+- Splash screen
+- Offline support (cache inventory locally)
+
+### Push Notifications (Priority: Low)
+- Low stock alerts
+- Recipe of the day
+
+---
+
+## Technical Improvements
 
 ### Image Optimization (Priority: High)
 - Compress images before sending to API
 - Reduce API costs and latency
+- Consider switching to Supabase Storage
 
-### Offline Support (Priority: Medium)
-- Cache recipe database
-- Queue bottle additions for later sync
+### Better Type Safety (Priority: Medium)
+- Generate Supabase types automatically
+- Remove `as any` workarounds
 
-### PWA Enhancements (Priority: Medium)
-- Install prompt
-- Push notifications for low stock
+### Testing (Priority: Low)
+- Unit tests for API routes
+- E2E tests with Playwright
 
 ---
 

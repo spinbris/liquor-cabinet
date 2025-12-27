@@ -1,36 +1,210 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🥃 Liquor Cabinet
 
-## Getting Started
+An AI-powered home bar inventory app that lets you photograph bottles, track your collection, and discover cocktails you can make.
 
-First, run the development server:
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8)
+![Claude AI](https://img.shields.io/badge/Claude-Sonnet_4-orange)
+
+## ✨ Features
+
+### 📸 AI Bottle Identification
+- Take a photo of any bottle
+- Claude Vision AI identifies brand, product, category, ABV, and more
+- Works with spirits, liqueurs, wine, and beer
+
+### 🗄️ Inventory Management
+- Track bottles with quantities
+- Organized by category (Whisky, Gin, Rum, Vodka, etc.)
+- Add multiple bottles at once
+- Mark bottles as finished (tracks consumption)
+- Delete incorrect entries
+
+### 🍸 Cocktail Recipes
+- AI-generated recipes based on your inventory
+- Shows which spirits you have vs need
+- Real cocktail images from TheCocktailDB
+- Metric/Imperial measurement toggle
+- Difficulty ratings
+
+### 📊 Dashboard Stats
+- Total bottles in cabinet
+- Number of categories
+- Bottles finished this month
+- Consumption tracking over time
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+
+- Anthropic API key
+- Supabase account
+
+### Installation
+
+```bash
+# Clone the repo
+git clone https://github.com/spinbris/liquor-cabinet.git
+cd liquor-cabinet
+
+# Install dependencies
+npm install
+
+# Copy environment template
+cp .env.local.example .env.local
+```
+
+### Environment Variables
+
+Edit `.env.local` with your keys:
+
+```bash
+# Anthropic API (for Claude Vision)
+ANTHROPIC_API_KEY=sk-ant-xxxxx
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=xxxxx
+```
+
+### Database Setup
+
+Run this SQL in your Supabase SQL Editor:
+
+```sql
+-- Bottles table
+create table bottles (
+  id uuid default gen_random_uuid() primary key,
+  brand text not null,
+  product_name text not null,
+  category text not null,
+  sub_category text,
+  country_of_origin text,
+  region text,
+  abv numeric,
+  size_ml integer,
+  description text,
+  tasting_notes text,
+  image_url text,
+  quantity integer default 1,
+  notes text,
+  dan_murphys_url text,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- Inventory events table (for consumption tracking)
+create table inventory_events (
+  id uuid default gen_random_uuid() primary key,
+  bottle_id uuid references bottles(id) on delete cascade,
+  event_type text not null check (event_type in ('added', 'finished', 'adjusted')),
+  quantity_change integer not null,
+  purchase_price numeric,
+  purchase_source text,
+  notes text,
+  event_date timestamp with time zone default now()
+);
+
+-- RLS policies
+alter table bottles enable row level security;
+alter table inventory_events enable row level security;
+create policy "Allow all bottles" on bottles for all using (true);
+create policy "Allow all events" on inventory_events for all using (true);
+
+-- Indexes
+create index bottles_category_idx on bottles(category);
+create index bottles_brand_idx on bottles(brand);
+create index inventory_events_bottle_idx on inventory_events(bottle_id);
+```
+
+### Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📱 Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Vercel (Recommended)
 
-## Learn More
+1. Push to GitHub
+2. Import project in [Vercel](https://vercel.com/new)
+3. Add environment variables
+4. Deploy
 
-To learn more about Next.js, take a look at the following resources:
+The app is PWA-capable and works great on mobile for photographing bottles.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🏗️ Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+liquor-cabinet/
+├── app/
+│   ├── page.tsx              # Home dashboard
+│   ├── layout.tsx            # Root layout with nav
+│   ├── globals.css           # Tailwind styles
+│   ├── add/
+│   │   └── page.tsx          # Add bottle (photo + AI)
+│   ├── inventory/
+│   │   ├── page.tsx          # Inventory grid
+│   │   └── [id]/
+│   │       └── page.tsx      # Bottle detail page
+│   ├── recipes/
+│   │   └── page.tsx          # Cocktail recipes
+│   └── api/
+│       ├── identify/         # Claude Vision API
+│       ├── bottles/          # CRUD operations
+│       │   └── [id]/
+│       │       ├── route.ts  # GET/PUT/DELETE
+│       │       └── finish/   # Mark as finished
+│       ├── recipes/          # Recipe generation
+│       └── stats/            # Dashboard stats
+├── lib/
+│   ├── config.ts             # App configuration
+│   ├── types.ts              # TypeScript interfaces
+│   ├── supabase.ts           # Supabase client
+│   └── database.types.ts     # Database types
+└── docs/
+    └── ENHANCEMENTS.md       # Future roadmap
+```
 
-## Deploy on Vercel
+## ⚙️ Configuration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Edit `lib/config.ts` to customize:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```typescript
+export const config = {
+  ai: {
+    identifyModel: "claude-sonnet-4-20250514",  // Vision model
+    recipeModel: "claude-sonnet-4-20250514",    // Recipe model
+  },
+  units: {
+    default: "metric",  // "metric" or "imperial"
+  },
+  recipes: {
+    suggestionCount: 8,
+  },
+};
+```
+
+## 🛠️ Tech Stack
+
+- **Framework:** Next.js 16 (App Router)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS v4
+- **Database:** Supabase (PostgreSQL)
+- **AI:** Claude Sonnet 4 (Anthropic)
+- **Images:** TheCocktailDB API
+- **Hosting:** Vercel
+
+## 📄 License
+
+MIT
+
+## 🙏 Acknowledgments
+
+- [Anthropic](https://anthropic.com) for Claude AI
+- [TheCocktailDB](https://thecocktaildb.com) for cocktail images
+- [Supabase](https://supabase.com) for database hosting
