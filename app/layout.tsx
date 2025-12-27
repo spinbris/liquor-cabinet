@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import NavBar from "@/components/NavBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,36 +30,7 @@ export default function RootLayout({
       >
         <div className="flex min-h-screen flex-col">
           {/* Navigation */}
-          <header className="sticky top-0 z-50 border-b border-neutral-800 bg-neutral-950/90 backdrop-blur-sm">
-            <nav className="container mx-auto flex h-16 items-center justify-between px-4">
-              <a href="/" className="flex items-center gap-2 no-underline">
-                <span className="text-2xl">🥃</span>
-                <span className="text-xl font-semibold text-neutral-100">
-                  Liquor Cabinet
-                </span>
-              </a>
-              <div className="flex items-center gap-6">
-                <a
-                  href="/inventory"
-                  className="text-neutral-400 hover:text-amber-500 transition-colors no-underline"
-                >
-                  Inventory
-                </a>
-                <a
-                  href="/add"
-                  className="text-neutral-400 hover:text-amber-500 transition-colors no-underline"
-                >
-                  Add Bottle
-                </a>
-                <a
-                  href="/recipes"
-                  className="text-neutral-400 hover:text-amber-500 transition-colors no-underline"
-                >
-                  Recipes
-                </a>
-              </div>
-            </nav>
-          </header>
+          <NavBar />
 
           {/* Main content */}
           <main className="flex-1">{children}</main>

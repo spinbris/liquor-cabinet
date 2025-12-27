@@ -1,26 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { createClient } from "@/lib/supabase-server";
 
 // GET single bottle by ID
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getSupabase();
+  const supabase = await createClient();
   const { id } = await params;
+
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
 
   try {
     const { data, error } = await supabase
       .from("bottles")
       .select("*")
       .eq("id", id)
+      .eq("user_id", user.id)
       .single();
 
     if (error) {
@@ -45,8 +48,17 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getSupabase();
+  const supabase = await createClient();
   const { id } = await params;
+
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
 
   try {
     const updates = await request.json();
@@ -58,6 +70,7 @@ export async function PUT(
       .from("bottles")
       .update(updates)
       .eq("id", id)
+      .eq("user_id", user.id)
       .select()
       .single();
 
@@ -70,16 +83,13 @@ export async function PUT(
     }
 
     // If quantity was changed, log an inventory event
-    if (updates.quantity !== undefined) {
-      // We'll determine the event type based on the action
-      // This is handled by the frontend passing event_type
-      if (updates.event_type) {
-        await supabase.from("inventory_events").insert({
-          bottle_id: id,
-          event_type: updates.event_type,
-          quantity_change: updates.quantity_change || 0,
-        });
-      }
+    if (updates.quantity !== undefined && updates.event_type) {
+      await supabase.from("inventory_events").insert({
+        bottle_id: id,
+        event_type: updates.event_type,
+        quantity_change: updates.quantity_change || 0,
+        user_id: user.id,
+      });
     }
 
     return NextResponse.json({ success: true, bottle: data });
@@ -97,21 +107,32 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getSupabase();
+  const supabase = await createClient();
   const { id } = await params;
 
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   try {
-    // First delete related inventory events
+    // First delete related inventory events (RLS will ensure user owns them)
     await supabase
       .from("inventory_events")
       .delete()
-      .eq("bottle_id", id);
+      .eq("bottle_id", id)
+      .eq("user_id", user.id);
 
-    // Then delete the bottle
+    // Then delete the bottle (RLS will ensure user owns it)
     const { error } = await supabase
       .from("bottles")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user.id);
 
     if (error) {
       console.error("Supabase error:", error);

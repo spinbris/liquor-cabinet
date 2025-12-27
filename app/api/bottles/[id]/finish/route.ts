@@ -1,27 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { createClient } from "@/lib/supabase-server";
 
 // POST - Mark one bottle as finished (decrement quantity)
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getSupabase();
+  const supabase = await createClient();
   const { id } = await params;
 
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   try {
-    // Get current bottle
+    // Get current bottle (user_id filter ensures ownership)
     const { data: bottle, error: fetchError } = await supabase
       .from("bottles")
       .select("quantity")
       .eq("id", id)
+      .eq("user_id", user.id)
       .single();
 
     if (fetchError || !bottle) {
@@ -48,6 +51,7 @@ export async function POST(
         updated_at: new Date().toISOString()
       })
       .eq("id", id)
+      .eq("user_id", user.id)
       .select()
       .single();
 
@@ -64,6 +68,7 @@ export async function POST(
       bottle_id: id,
       event_type: "finished",
       quantity_change: -1,
+      user_id: user.id,
     });
 
     return NextResponse.json({ success: true, bottle: data });

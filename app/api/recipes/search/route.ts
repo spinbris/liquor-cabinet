@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase-server";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "@/lib/config";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -56,7 +49,16 @@ async function getCocktailImage(cocktailName: string): Promise<string | null> {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
+  const supabase = await createClient();
+
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
 
   try {
     const { query } = await request.json();
@@ -72,6 +74,7 @@ export async function POST(request: NextRequest) {
     const { data: bottles } = await supabase
       .from("bottles")
       .select("brand, product_name, category, sub_category")
+      .eq("user_id", user.id)
       .gt("quantity", 0);
 
     // Get recipe from Claude

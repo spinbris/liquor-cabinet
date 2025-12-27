@@ -1,25 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase-server";
 import { BottleInsert } from "@/lib/database.types";
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
-
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
+  const supabase = await createClient();
+  
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
   
   try {
     const bottle: BottleInsert & { quantity?: number } = await request.json();
     const addQuantity = bottle.quantity || 1;
 
-    // Check if bottle with same brand + product_name already exists
+    // Check if bottle with same brand + product_name already exists for this user
     const { data: existingList } = await supabase
       .from("bottles")
       .select("id, quantity")
+      .eq("user_id", user.id)
       .ilike("brand", bottle.brand)
       .ilike("product_name", bottle.product_name)
       .gt("quantity", 0)
@@ -39,6 +42,7 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString()
         })
         .eq("id", (existing as any).id)
+        .eq("user_id", user.id)
         .select()
         .single();
 
@@ -51,12 +55,13 @@ export async function POST(request: NextRequest) {
       }
       resultBottle = data;
     } else {
-      // Create new bottle record with the specified quantity
+      // Create new bottle record with user_id
       const { data, error } = await supabase
         .from("bottles")
         .insert({
           ...bottle,
           quantity: addQuantity,
+          user_id: user.id,
         })
         .select()
         .single();
@@ -71,11 +76,12 @@ export async function POST(request: NextRequest) {
       resultBottle = data;
     }
 
-    // Create inventory event with correct quantity
+    // Create inventory event with user_id
     await supabase.from("inventory_events").insert({
       bottle_id: (resultBottle as any).id,
       event_type: "added",
       quantity_change: addQuantity,
+      user_id: user.id,
     });
 
     return NextResponse.json({ success: true, bottle: resultBottle });
@@ -89,12 +95,22 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const supabase = getSupabase();
+  const supabase = await createClient();
+  
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
   
   try {
     const { data, error } = await supabase
       .from("bottles")
       .select("*")
+      .eq("user_id", user.id)
       .gt("quantity", 0)
       .order("created_at", { ascending: false });
 
