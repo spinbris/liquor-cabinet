@@ -5,9 +5,14 @@ An AI-powered home bar inventory app that lets you photograph bottles, track you
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8)
-![Claude AI](https://img.shields.io/badge/Claude-Sonnet_4-orange)
+![Claude AI](https://img.shields.io/badge/Claude-Haiku_4.5-orange)
 
 ## ✨ Features
+
+### 🔐 User Accounts
+- **Google Sign-In** - one click to sign up/sign in
+- **Private cabinets** - each user has their own inventory
+- Secure authentication via Supabase Auth
 
 ### 📸 AI Bottle Identification
 - Take a photo of any bottle
@@ -48,6 +53,7 @@ An AI-powered home bar inventory app that lets you photograph bottles, track you
 - Node.js 18+
 - Anthropic API key
 - Supabase account
+- Google Cloud project (for OAuth)
 
 ### Installation
 
@@ -76,6 +82,23 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=xxxxx
 ```
 
+### Google OAuth Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project → APIs & Services → OAuth consent screen → Configure
+3. Create credentials → OAuth client ID → Web application
+4. Add redirect URIs:
+   - `http://localhost:3000/auth/callback` (dev)
+   - `https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback` (prod)
+5. Copy Client ID and Client Secret
+
+### Supabase Auth Setup
+
+1. Go to Supabase Dashboard → Authentication → Providers
+2. Enable Google provider
+3. Paste Client ID and Client Secret from Google
+4. Save
+
 ### Database Setup
 
 Run this SQL in your Supabase SQL Editor:
@@ -84,6 +107,7 @@ Run this SQL in your Supabase SQL Editor:
 -- Bottles table
 create table bottles (
   id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users(id),
   brand text not null,
   product_name text not null,
   category text not null,
@@ -105,6 +129,7 @@ create table bottles (
 -- Inventory events table (for consumption tracking)
 create table inventory_events (
   id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users(id),
   bottle_id uuid references bottles(id) on delete cascade,
   event_type text not null check (event_type in ('added', 'finished', 'adjusted')),
   quantity_change integer not null,
@@ -114,15 +139,29 @@ create table inventory_events (
   event_date timestamp with time zone default now()
 );
 
--- RLS policies
+-- Enable RLS
 alter table bottles enable row level security;
 alter table inventory_events enable row level security;
-create policy "Allow all bottles" on bottles for all using (true);
-create policy "Allow all events" on inventory_events for all using (true);
+
+-- RLS policies - users can only access their own data
+create policy "Users can view own bottles" on bottles
+  for select using (auth.uid() = user_id);
+create policy "Users can insert own bottles" on bottles
+  for insert with check (auth.uid() = user_id);
+create policy "Users can update own bottles" on bottles
+  for update using (auth.uid() = user_id);
+create policy "Users can delete own bottles" on bottles
+  for delete using (auth.uid() = user_id);
+
+create policy "Users can view own events" on inventory_events
+  for select using (auth.uid() = user_id);
+create policy "Users can insert own events" on inventory_events
+  for insert with check (auth.uid() = user_id);
 
 -- Indexes
+create index bottles_user_idx on bottles(user_id);
 create index bottles_category_idx on bottles(category);
-create index bottles_brand_idx on bottles(brand);
+create index inventory_events_user_idx on inventory_events(user_id);
 create index inventory_events_bottle_idx on inventory_events(bottle_id);
 ```
 
@@ -162,8 +201,11 @@ Note: Google Nest Hub doesn't support opening websites via voice command directl
 liquor-cabinet/
 ├── app/
 │   ├── page.tsx              # Home dashboard
-│   ├── layout.tsx            # Root layout with nav
+│   ├── layout.tsx            # Root layout with NavBar
 │   ├── globals.css           # Tailwind styles
+│   ├── auth/
+│   │   ├── page.tsx          # Sign-in page
+│   │   └── callback/         # OAuth callback handler
 │   ├── add/
 │   │   └── page.tsx          # Add bottle (photo + AI)
 │   ├── inventory/
@@ -176,19 +218,23 @@ liquor-cabinet/
 │   │   └── page.tsx          # Kitchen mode (cast-friendly)
 │   └── api/
 │       ├── identify/         # Claude Vision API
-│       ├── bottles/          # CRUD operations
+│       ├── bottles/          # CRUD operations (user-filtered)
 │       │   └── [id]/
 │       │       ├── route.ts  # GET/PUT/DELETE
 │       │       └── finish/   # Mark as finished
 │       ├── recipes/
-│       │   ├── route.ts      # Recipe suggestions
+│       │   ├── route.ts      # Recipe suggestions (user-filtered)
 │       │   └── search/       # Recipe search
-│       └── stats/            # Dashboard stats
+│       └── stats/            # Dashboard stats (user-filtered)
+├── components/
+│   └── NavBar.tsx            # Navigation with user menu
 ├── lib/
 │   ├── config.ts             # App configuration
+│   ├── supabase-browser.ts   # Client-side Supabase
+│   ├── supabase-server.ts    # Server-side Supabase
 │   ├── types.ts              # TypeScript interfaces
-│   ├── supabase.ts           # Supabase client
 │   └── database.types.ts     # Database types
+├── middleware.ts             # Route protection
 ├── docs/
 │   └── ENHANCEMENTS.md       # Future roadmap
 ├── CLAUDE.md                 # AI assistant instructions
@@ -202,8 +248,8 @@ Edit `lib/config.ts` to customize:
 ```typescript
 export const config = {
   ai: {
-    identifyModel: "claude-sonnet-4-20250514",  // Vision model
-    recipeModel: "claude-sonnet-4-20250514",    // Recipe model
+    identifyModel: "claude-haiku-4-5-20251001",  // Vision model (cost-efficient)
+    recipeModel: "claude-haiku-4-5-20251001",    // Recipe model
   },
   units: {
     default: "metric",  // "metric" or "imperial"
@@ -220,10 +266,21 @@ export const config = {
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4
 - **Database:** Supabase (PostgreSQL)
-- **AI:** Claude Sonnet 4 (Anthropic)
+- **Auth:** Supabase Auth (Google OAuth)
+- **AI:** Claude Haiku 4.5 (Anthropic)
 - **Images:** TheCocktailDB API
 - **Voice:** Web Speech API (browser-native)
 - **Hosting:** Vercel
+
+## 💰 Running Costs
+
+| Service | Cost |
+|---------|------|
+| Vercel | Free tier |
+| Supabase | Free tier |
+| Claude API | ~$0.001/bottle ID |
+
+Typical usage for 5 users: **<$0.10/month**
 
 ## 📄 License
 
@@ -233,4 +290,4 @@ MIT
 
 - [Anthropic](https://anthropic.com) for Claude AI
 - [TheCocktailDB](https://thecocktaildb.com) for cocktail images
-- [Supabase](https://supabase.com) for database hosting
+- [Supabase](https://supabase.com) for database and auth

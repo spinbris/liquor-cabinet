@@ -21,12 +21,20 @@
 - [x] Voice search (🎤 microphone input)
 - [x] Kitchen Mode (cast-friendly large display)
 
+### Authentication & Multi-User
+- [x] Google Sign-In (one-click OAuth)
+- [x] Private cabinets per user
+- [x] Route protection (middleware)
+- [x] User menu with sign out
+- [x] Row Level Security (RLS) policies
+
 ### Technical
 - [x] Centralized config file (`lib/config.ts`)
 - [x] Mobile camera support (deployed to Vercel)
 - [x] Dark theme with amber accents
 - [x] Australian English voice recognition
 - [x] Comprehensive documentation (README, CLAUDE.md)
+- [x] Claude Haiku for cost efficiency (~90% savings)
 
 ---
 
