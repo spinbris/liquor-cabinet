@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { BottleIdentification, IdentifyResponse } from "@/lib/types";
+import { config } from "@/lib/config";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -30,8 +31,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<IdentifyR
     const base64Data = matches[2];
 
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
+      model: config.ai.identifyModel,
+      max_tokens: config.ai.maxTokens.identify,
       messages: [
         {
           role: "user",

@@ -1,4 +1,26 @@
+"use client";
+
+import { useState, useEffect } from "react";
+
+interface Stats {
+  totalBottles: number;
+  categories: number;
+  cocktailsAvailable: number | null;
+  finishedThisMonth: number;
+}
+
 export default function Home() {
+  const [stats, setStats] = useState<Stats | null>(null);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setStats(data.stats);
+      })
+      .catch(err => console.error("Failed to load stats:", err));
+  }, []);
+
   return (
     <div className="container mx-auto px-4 py-12">
       {/* Hero Section */}
@@ -54,18 +76,22 @@ export default function Home() {
         </a>
       </section>
 
-      {/* Stats placeholder */}
+      {/* Stats Section */}
       <section className="p-8 rounded-xl border border-neutral-800 bg-neutral-900/30">
         <h2 className="text-2xl font-semibold mb-6 text-center text-neutral-100">
           Cabinet Overview
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
           <div>
-            <div className="text-4xl font-bold text-amber-500">—</div>
+            <div className="text-4xl font-bold text-amber-500">
+              {stats?.totalBottles ?? "—"}
+            </div>
             <div className="text-neutral-400">Total Bottles</div>
           </div>
           <div>
-            <div className="text-4xl font-bold text-amber-500">—</div>
+            <div className="text-4xl font-bold text-amber-500">
+              {stats?.categories ?? "—"}
+            </div>
             <div className="text-neutral-400">Categories</div>
           </div>
           <div>
@@ -73,8 +99,10 @@ export default function Home() {
             <div className="text-neutral-400">Cocktails Available</div>
           </div>
           <div>
-            <div className="text-4xl font-bold text-amber-500">—</div>
-            <div className="text-neutral-400">This Month</div>
+            <div className="text-4xl font-bold text-amber-500">
+              {stats?.finishedThisMonth ?? "—"}
+            </div>
+            <div className="text-neutral-400">Finished This Month</div>
           </div>
         </div>
       </section>
