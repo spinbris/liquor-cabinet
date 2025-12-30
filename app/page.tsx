@@ -29,8 +29,8 @@ export default function Home() {
           Your Personal Bar Assistant
         </h1>
         <p className="text-xl text-neutral-400 max-w-2xl mx-auto">
-          Photograph your bottles, track your inventory, and discover cocktails
-          you can make with what you have on hand.
+          Photograph your bottles within app on your phone, track your inventory, 
+          and discover cocktails you can make with what you have on hand.
         </p>
       </section>
 
