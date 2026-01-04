@@ -1,39 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase-browser";
-import type { User } from "@supabase/supabase-js";
+import { useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 
 export default function NavBar() {
-  const [user, setUser] = useState<User | null>(null);
+  const { data: session } = useSession();
   const [showMenu, setShowMenu] = useState(false);
-  const supabase = createClient();
-
-  useEffect(() => {
-    // Get initial user
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/auth";
+    await signOut({ callbackUrl: "/auth" });
   };
 
   // Don't show nav on auth page
   if (typeof window !== "undefined" && window.location.pathname === "/auth") {
     return null;
   }
+
+  const user = session?.user;
 
   return (
     <header className="sticky top-0 z-50 border-b border-neutral-800 bg-neutral-950/90 backdrop-blur-sm">
@@ -71,9 +54,9 @@ export default function NavBar() {
                 onClick={() => setShowMenu(!showMenu)}
                 className="flex items-center gap-2 text-neutral-400 hover:text-amber-500 transition-colors"
               >
-                {user.user_metadata?.avatar_url ? (
+                {user.image ? (
                   <img
-                    src={user.user_metadata.avatar_url}
+                    src={user.image}
                     alt="Profile"
                     className="w-8 h-8 rounded-full"
                   />
@@ -83,7 +66,7 @@ export default function NavBar() {
                   </div>
                 )}
                 <span className="hidden md:inline text-sm">
-                  {user.user_metadata?.full_name || user.email?.split("@")[0]}
+                  {user.name || user.email?.split("@")[0]}
                 </span>
                 <svg
                   className={`w-4 h-4 transition-transform ${

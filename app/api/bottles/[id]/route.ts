@@ -1,152 +1,145 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { auth } from "@/lib/auth";
+import { sql } from "@/lib/neon";
+import { BottleUpdate } from "@/lib/database.types";
 
-// GET single bottle by ID
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
-  const { id } = await params;
-
-  // Get current user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const { data, error } = await supabase
-      .from("bottles")
-      .select("*")
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .single();
+  const { id } = await params;
 
-    if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 404 }
-      );
+  try {
+    const bottles = await sql`
+      SELECT * FROM bottles
+      WHERE id = ${id}
+      AND user_id = ${session.user.id}
+    `;
+
+    if (!bottles || bottles.length === 0) {
+      return NextResponse.json({ success: false, error: "Bottle not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, bottle: data });
+    return NextResponse.json({ success: true, bottle: bottles[0] });
   } catch (error) {
     console.error("Get bottle error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to get bottle" },
+      { error: "Failed to get bottle" },
       { status: 500 }
     );
   }
 }
 
-// PUT update bottle
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
-  const { id } = await params;
-
-  // Get current user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   try {
-    const updates = await request.json();
-    
-    // Add updated_at timestamp
-    updates.updated_at = new Date().toISOString();
+    const updates: any = await request.json();
 
-    const { data, error } = await supabase
-      .from("bottles")
-      .update(updates)
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .select()
-      .single();
+    // First get the current bottle to compare quantity
+    const current = await sql`
+      SELECT quantity FROM bottles
+      WHERE id = ${id}
+      AND user_id = ${session.user.id}
+    `;
 
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      );
+    if (!current || current.length === 0) {
+      return NextResponse.json({ success: false, error: "Bottle not found" }, { status: 404 });
     }
 
-    // If quantity was changed, log an inventory event
+    // Update the bottle with all provided fields
+    const updated = await sql`
+      UPDATE bottles
+      SET
+        brand = COALESCE(${updates.brand ?? null}, brand),
+        product_name = COALESCE(${updates.product_name ?? null}, product_name),
+        category = COALESCE(${updates.category ?? null}, category),
+        sub_category = COALESCE(${updates.sub_category ?? null}, sub_category),
+        country_of_origin = COALESCE(${updates.country_of_origin ?? null}, country_of_origin),
+        region = COALESCE(${updates.region ?? null}, region),
+        abv = COALESCE(${updates.abv ?? null}, abv),
+        size_ml = COALESCE(${updates.size_ml ?? null}, size_ml),
+        description = COALESCE(${updates.description ?? null}, description),
+        tasting_notes = COALESCE(${updates.tasting_notes ?? null}, tasting_notes),
+        notes = COALESCE(${updates.notes ?? null}, notes),
+        dan_murphys_url = COALESCE(${updates.dan_murphys_url ?? null}, dan_murphys_url),
+        quantity = ${updates.quantity !== undefined ? updates.quantity : current[0].quantity},
+        updated_at = NOW()
+      WHERE id = ${id}
+      AND user_id = ${session.user.id}
+      RETURNING *
+    `;
+
+    if (!updated || updated.length === 0) {
+      return NextResponse.json({ success: false, error: "Bottle not found" }, { status: 404 });
+    }
+
+    // If quantity was changed and event_type provided, log inventory event
     if (updates.quantity !== undefined && updates.event_type) {
-      await supabase.from("inventory_events").insert({
-        bottle_id: id,
-        event_type: updates.event_type,
-        quantity_change: updates.quantity_change || 0,
-        user_id: user.id,
-      });
+      await sql`
+        INSERT INTO inventory_events (
+          user_id, bottle_id, event_type, quantity_change
+        )
+        VALUES (
+          ${session.user.id},
+          ${id},
+          ${updates.event_type},
+          ${updates.quantity_change || 0}
+        )
+      `;
     }
 
-    return NextResponse.json({ success: true, bottle: data });
+    return NextResponse.json({ success: true, bottle: updated[0] });
   } catch (error) {
     console.error("Update bottle error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to update bottle" },
+      { error: "Failed to update bottle" },
       { status: 500 }
     );
   }
 }
 
-// DELETE bottle (hard delete for mistakes)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
-  const { id } = await params;
-
-  // Get current user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   try {
-    // First delete related inventory events (RLS will ensure user owns them)
-    await supabase
-      .from("inventory_events")
-      .delete()
-      .eq("bottle_id", id)
-      .eq("user_id", user.id);
+    const deleted = await sql`
+      DELETE FROM bottles
+      WHERE id = ${id}
+      AND user_id = ${session.user.id}
+      RETURNING *
+    `;
 
-    // Then delete the bottle (RLS will ensure user owns it)
-    const { error } = await supabase
-      .from("bottles")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      );
+    if (!deleted || deleted.length === 0) {
+      return NextResponse.json({ error: "Bottle not found" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete bottle error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to delete bottle" },
+      { error: "Failed to delete bottle" },
       { status: 500 }
     );
   }

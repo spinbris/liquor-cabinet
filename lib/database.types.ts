@@ -4,6 +4,7 @@ export interface Database {
       bottles: {
         Row: {
           id: string;
+          user_id: string;
           brand: string;
           product_name: string;
           category: string;
@@ -23,6 +24,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          user_id: string;
           brand: string;
           product_name: string;
           category: string;
@@ -42,6 +44,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          user_id?: string;
           brand?: string;
           product_name?: string;
           category?: string;
@@ -63,6 +66,7 @@ export interface Database {
       inventory_events: {
         Row: {
           id: string;
+          user_id: string;
           bottle_id: string;
           event_type: "added" | "finished" | "adjusted";
           quantity_change: number;
@@ -73,6 +77,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          user_id: string;
           bottle_id: string;
           event_type: "added" | "finished" | "adjusted";
           quantity_change: number;
@@ -83,6 +88,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          user_id?: string;
           bottle_id?: string;
           event_type?: "added" | "finished" | "adjusted";
           quantity_change?: number;

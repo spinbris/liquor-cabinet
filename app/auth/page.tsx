@@ -1,21 +1,10 @@
 "use client";
 
-import { createClient } from "@/lib/supabase-browser";
+import { signIn } from "next-auth/react";
 
 export default function AuthPage() {
-  const supabase = createClient();
-
   const handleGoogleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    if (error) {
-      console.error("Error signing in:", error.message);
-    }
+    await signIn("google", { callbackUrl: "/" });
   };
 
   return (

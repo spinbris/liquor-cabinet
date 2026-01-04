@@ -1,59 +1,57 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { auth } from "@/lib/auth";
+import { sql } from "@/lib/neon";
 
 export async function GET() {
-  const supabase = await createClient();
-
-  // Get current user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Get all active bottles for this user
-    const { data: bottles } = await supabase
-      .from("bottles")
-      .select("quantity, category")
-      .eq("user_id", user.id)
-      .gt("quantity", 0);
+    const userId = session.user.id;
 
-    // Calculate total bottles and unique categories
-    const totalBottles = bottles?.reduce((sum, b) => sum + ((b as any).quantity || 0), 0) || 0;
-    const categories = new Set(bottles?.map(b => (b as any).category)).size;
+    // Total bottles
+    const totalResult = await sql`
+      SELECT COALESCE(SUM(quantity), 0) as total
+      FROM bottles
+      WHERE user_id = ${userId}
+    `;
 
-    // Get bottles finished this month for this user
+    // Count of unique categories
+    const categoriesResult = await sql`
+      SELECT COUNT(DISTINCT category) as count
+      FROM bottles
+      WHERE user_id = ${userId}
+      AND quantity > 0
+    `;
+
+    // Finished this month
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const { data: finishedEvents } = await supabase
-      .from("inventory_events")
-      .select("quantity_change")
-      .eq("user_id", user.id)
-      .eq("event_type", "finished")
-      .gte("event_date", startOfMonth.toISOString());
-
-    const finishedThisMonth = finishedEvents?.reduce(
-      (sum, e) => sum + Math.abs((e as any).quantity_change || 0), 0
-    ) || 0;
+    const finishedResult = await sql`
+      SELECT COALESCE(SUM(ABS(quantity_change)), 0) as count
+      FROM inventory_events
+      WHERE user_id = ${userId}
+      AND event_type = 'finished'
+      AND event_date >= ${startOfMonth.toISOString()}
+    `;
 
     return NextResponse.json({
       success: true,
       stats: {
-        totalBottles,
-        categories,
-        cocktailsAvailable: null, // Future feature
-        finishedThisMonth,
+        totalBottles: parseInt(totalResult[0].total),
+        categories: parseInt(categoriesResult[0].count),
+        cocktailsAvailable: null,
+        finishedThisMonth: parseInt(finishedResult[0].count),
       },
     });
   } catch (error) {
-    console.error("Stats error:", error);
+    console.error("Get stats error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to load stats" },
+      { error: "Failed to get statistics" },
       { status: 500 }
     );
   }

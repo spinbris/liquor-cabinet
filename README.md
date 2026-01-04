@@ -6,13 +6,14 @@ An AI-powered home bar inventory app that lets you photograph bottles, track you
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8)
 ![Claude AI](https://img.shields.io/badge/Claude-Haiku_4.5-orange)
+![Neon](https://img.shields.io/badge/Neon-Serverless_Postgres-00E699)
 
 ## ✨ Features
 
 ### 🔐 User Accounts
 - **Google Sign-In** - one click to sign up/sign in
 - **Private cabinets** - each user has their own inventory
-- Secure authentication via Supabase Auth
+- Secure authentication via Auth.js (NextAuth v5)
 
 ### 📸 AI Bottle Identification
 - Take a photo of any bottle
@@ -52,7 +53,7 @@ An AI-powered home bar inventory app that lets you photograph bottles, track you
 ### Prerequisites
 - Node.js 18+
 - Anthropic API key
-- Supabase account
+- Neon account (free tier)
 - Google Cloud project (for OAuth)
 
 ### Installation
@@ -77,9 +78,13 @@ Edit `.env.local` with your keys:
 # Anthropic API (for Claude Vision)
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=xxxxx
+# Neon Database
+DATABASE_URL=postgresql://user:pass@host.neon.tech/neondb?sslmode=require
+
+# Auth.js (NextAuth v5)
+AUTH_SECRET=your-generated-secret  # Generate with: openssl rand -base64 32
+AUTH_GOOGLE_ID=xxxxx.apps.googleusercontent.com
+AUTH_GOOGLE_SECRET=xxxxx
 ```
 
 ### Google OAuth Setup
@@ -88,82 +93,58 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=xxxxx
 2. Create a project → APIs & Services → OAuth consent screen → Configure
 3. Create credentials → OAuth client ID → Web application
 4. Add redirect URIs:
-   - `http://localhost:3000/auth/callback` (dev)
-   - `https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback` (prod)
-5. Copy Client ID and Client Secret
-
-### Supabase Auth Setup
-
-1. Go to Supabase Dashboard → Authentication → Providers
-2. Enable Google provider
-3. Paste Client ID and Client Secret from Google
-4. Save
+   - `http://localhost:3000/api/auth/callback/google` (dev)
+   - `https://your-domain.vercel.app/api/auth/callback/google` (prod)
+5. Copy Client ID and Client Secret to your `.env.local`
 
 ### Database Setup
 
-Run this SQL in your Supabase SQL Editor:
+Create a new project in [Neon Console](https://console.neon.tech/), then run this SQL:
 
 ```sql
 -- Bottles table
-create table bottles (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users(id),
-  brand text not null,
-  product_name text not null,
-  category text not null,
-  sub_category text,
-  country_of_origin text,
-  region text,
-  abv numeric,
-  size_ml integer,
-  description text,
-  tasting_notes text,
-  image_url text,
-  quantity integer default 1,
-  notes text,
-  dan_murphys_url text,
-  created_at timestamp with time zone default now(),
-  updated_at timestamp with time zone default now()
+CREATE TABLE bottles (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  brand TEXT NOT NULL,
+  product_name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  sub_category TEXT,
+  country_of_origin TEXT,
+  region TEXT,
+  abv NUMERIC,
+  size_ml INTEGER,
+  description TEXT,
+  tasting_notes TEXT,
+  image_url TEXT,
+  quantity INTEGER DEFAULT 1,
+  notes TEXT,
+  dan_murphys_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Inventory events table (for consumption tracking)
-create table inventory_events (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users(id),
-  bottle_id uuid references bottles(id) on delete cascade,
-  event_type text not null check (event_type in ('added', 'finished', 'adjusted')),
-  quantity_change integer not null,
-  purchase_price numeric,
-  purchase_source text,
-  notes text,
-  event_date timestamp with time zone default now()
+CREATE TABLE inventory_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  bottle_id UUID REFERENCES bottles(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK (event_type IN ('added', 'finished', 'adjusted')),
+  quantity_change INTEGER NOT NULL,
+  purchase_price NUMERIC,
+  purchase_source TEXT,
+  notes TEXT,
+  event_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Enable RLS
-alter table bottles enable row level security;
-alter table inventory_events enable row level security;
-
--- RLS policies - users can only access their own data
-create policy "Users can view own bottles" on bottles
-  for select using (auth.uid() = user_id);
-create policy "Users can insert own bottles" on bottles
-  for insert with check (auth.uid() = user_id);
-create policy "Users can update own bottles" on bottles
-  for update using (auth.uid() = user_id);
-create policy "Users can delete own bottles" on bottles
-  for delete using (auth.uid() = user_id);
-
-create policy "Users can view own events" on inventory_events
-  for select using (auth.uid() = user_id);
-create policy "Users can insert own events" on inventory_events
-  for insert with check (auth.uid() = user_id);
-
--- Indexes
-create index bottles_user_idx on bottles(user_id);
-create index bottles_category_idx on bottles(category);
-create index inventory_events_user_idx on inventory_events(user_id);
-create index inventory_events_bottle_idx on inventory_events(bottle_id);
+-- Indexes for performance
+CREATE INDEX bottles_user_idx ON bottles(user_id);
+CREATE INDEX bottles_category_idx ON bottles(category);
+CREATE INDEX inventory_events_user_idx ON inventory_events(user_id);
+CREATE INDEX inventory_events_bottle_idx ON inventory_events(bottle_id);
 ```
+
+**Note:** User data isolation is enforced at the application level. All API routes filter queries by the authenticated user's ID.
 
 ### Run Development Server
 
@@ -204,8 +185,7 @@ liquor-cabinet/
 │   ├── layout.tsx            # Root layout with NavBar
 │   ├── globals.css           # Tailwind styles
 │   ├── auth/
-│   │   ├── page.tsx          # Sign-in page
-│   │   └── callback/         # OAuth callback handler
+│   │   └── page.tsx          # Sign-in page
 │   ├── add/
 │   │   └── page.tsx          # Add bottle (photo + AI)
 │   ├── inventory/
@@ -217,23 +197,28 @@ liquor-cabinet/
 │   ├── kitchen/
 │   │   └── page.tsx          # Kitchen mode (cast-friendly)
 │   └── api/
+│       ├── auth/
+│       │   └── [...nextauth]/ # Auth.js OAuth handlers
 │       ├── identify/         # Claude Vision API
 │       ├── bottles/          # CRUD operations (user-filtered)
 │       │   └── [id]/
 │       │       ├── route.ts  # GET/PUT/DELETE
-│       │       └── finish/   # Mark as finished
+│       │       └── finish/   # Decrement quantity
 │       ├── recipes/
 │       │   ├── route.ts      # Recipe suggestions (user-filtered)
 │       │   └── search/       # Recipe search
 │       └── stats/            # Dashboard stats (user-filtered)
 ├── components/
-│   └── NavBar.tsx            # Navigation with user menu
+│   ├── NavBar.tsx            # Navigation with user menu
+│   └── Providers.tsx         # SessionProvider wrapper
 ├── lib/
 │   ├── config.ts             # App configuration
-│   ├── supabase-browser.ts   # Client-side Supabase
-│   ├── supabase-server.ts    # Server-side Supabase
+│   ├── auth.ts               # Auth.js configuration
+│   ├── neon.ts               # Neon database client
 │   ├── types.ts              # TypeScript interfaces
 │   └── database.types.ts     # Database types
+├── types/
+│   └── next-auth.d.ts        # Auth.js type augmentation
 ├── middleware.ts             # Route protection
 ├── docs/
 │   └── ENHANCEMENTS.md       # Future roadmap
@@ -265,8 +250,8 @@ export const config = {
 - **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4
-- **Database:** Supabase (PostgreSQL)
-- **Auth:** Supabase Auth (Google OAuth)
+- **Database:** Neon (Serverless PostgreSQL)
+- **Auth:** Auth.js v5 / NextAuth (Google OAuth)
 - **AI:** Claude Haiku 4.5 (Anthropic)
 - **Images:** TheCocktailDB API
 - **Voice:** Web Speech API (browser-native)
@@ -277,10 +262,10 @@ export const config = {
 | Service | Cost |
 |---------|------|
 | Vercel | Free tier |
-| Supabase | Free tier |
+| Neon | Free tier (512 MB storage, 0.5 vCPU) |
 | Claude API | ~$0.001/bottle ID |
 
-Typical usage for 5 users: **<$0.10/month**
+Typical usage: **100% free** on free tiers (previously $25/month with Supabase paid tier)
 
 ## 📄 License
 
@@ -290,4 +275,5 @@ MIT
 
 - [Anthropic](https://anthropic.com) for Claude AI
 - [TheCocktailDB](https://thecocktaildb.com) for cocktail images
-- [Supabase](https://supabase.com) for database and auth
+- [Neon](https://neon.tech) for serverless PostgreSQL
+- [Auth.js](https://authjs.dev) for authentication

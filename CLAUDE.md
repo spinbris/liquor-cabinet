@@ -11,7 +11,8 @@ This file provides context for Claude (or other AI assistants) when working on t
 - **Next.js 16** with App Router (not Pages Router)
 - **TypeScript** - strict mode
 - **Tailwind CSS v4** - uses `@import "tailwindcss"` syntax (not `@tailwind`)
-- **Supabase** - PostgreSQL database + Auth (Google OAuth)
+- **Neon** - Serverless PostgreSQL database (free tier)
+- **Auth.js v5** - Authentication with Google OAuth
 - **Claude API** - Haiku 4.5 for Vision (bottle ID) and text (recipes)
 - **Web Speech API** - Browser-native voice recognition
 - **Vercel** - deployment platform
@@ -21,14 +22,15 @@ This file provides context for Claude (or other AI assistants) when working on t
 ```
 app/                    # Next.js App Router pages
 ├── auth/              # Authentication
-│   ├── page.tsx       # Sign-in page (Google OAuth)
-│   └── callback/      # OAuth callback handler
+│   └── page.tsx       # Sign-in page (Google OAuth)
 ├── api/               # API routes (serverless functions)
+│   ├── auth/
+│   │   └── [...nextauth]/ # Auth.js OAuth handlers
 │   ├── identify/      # POST - Claude Vision bottle identification
 │   ├── bottles/       # GET/POST bottles (user-filtered)
 │   │   └── [id]/
 │   │       ├── route.ts   # GET/PUT/DELETE single bottle
-│   │       └── finish/    # POST - mark bottle as finished
+│   │       └── finish/    # POST - decrement quantity by 1
 │   ├── recipes/
 │   │   ├── route.ts       # GET - AI recipe suggestions (user-filtered)
 │   │   └── search/        # POST - search specific cocktail
@@ -39,14 +41,18 @@ app/                    # Next.js App Router pages
 └── kitchen/           # Kitchen mode (cast-friendly display)
 
 components/            # React components
-└── NavBar.tsx         # Navigation with user menu/sign out
+├── NavBar.tsx         # Navigation with user menu/sign out
+└── Providers.tsx      # SessionProvider wrapper
 
 lib/                   # Shared utilities
 ├── config.ts          # Centralized configuration
-├── supabase-browser.ts # Client-side Supabase (with auth)
-├── supabase-server.ts  # Server-side Supabase (with auth)
+├── auth.ts            # Auth.js configuration
+├── neon.ts            # Neon database client
 ├── types.ts           # TypeScript interfaces
 └── database.types.ts  # Database table types
+
+types/                 # TypeScript declarations
+└── next-auth.d.ts     # Auth.js type augmentation
 
 middleware.ts          # Route protection (redirects to /auth if not logged in)
 
@@ -58,46 +64,81 @@ docs/                  # Documentation
 
 ### Middleware (route protection)
 ```typescript
-// middleware.ts protects all routes except /auth and /auth/callback
+// middleware.ts protects all routes except /auth
+// Uses Auth.js middleware to check session
 // Unauthenticated users are redirected to /auth
+
+import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+
+export default auth((req) => {
+  const { pathname } = req.nextUrl;
+  const isLoggedIn = !!req.auth;
+
+  const publicRoutes = ["/auth"];
+  const isPublicRoute = publicRoutes.some((route) =>
+    pathname.startsWith(route)
+  );
+
+  if (!isLoggedIn && !isPublicRoute) {
+    return NextResponse.redirect(new URL("/auth", req.nextUrl.origin));
+  }
+
+  return NextResponse.next();
+});
 ```
 
 ### Server-side auth (API routes)
 ```typescript
-import { createClient } from "@/lib/supabase-server";
+import { auth } from "@/lib/auth";
+import { sql } from "@/lib/neon";
 
 export async function GET() {
-  const supabase = await createClient();
-  
-  // Get current user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  // Get current session
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  
-  // Filter by user_id
-  const { data } = await supabase
-    .from("bottles")
-    .select("*")
-    .eq("user_id", user.id);
+
+  // Query database with user_id filter
+  const bottles = await sql`
+    SELECT * FROM bottles
+    WHERE user_id = ${session.user.id}
+    ORDER BY created_at DESC
+  `;
+
+  return NextResponse.json({ success: true, bottles });
 }
 ```
 
 ### Client-side auth
 ```typescript
-import { createClient } from "@/lib/supabase-browser";
+import { useSession, signIn, signOut } from "next-auth/react";
 
-const supabase = createClient();
-const { data: { user } } = await supabase.auth.getUser();
+function Component() {
+  const { data: session } = useSession();
+
+  if (!session) {
+    return <button onClick={() => signIn("google")}>Sign in</button>;
+  }
+
+  return (
+    <div>
+      <p>Signed in as {session.user.email}</p>
+      <button onClick={() => signOut()}>Sign out</button>
+    </div>
+  );
+}
 ```
 
 ## Key Patterns
 
 ### API Routes
-- Use `createClient()` from `@/lib/supabase-server` for server-side
-- Always check `auth.getUser()` first
-- Filter all queries by `user_id`
+- Import `auth` from `@/lib/auth` and `sql` from `@/lib/neon`
+- Always check session with `await auth()` first
+- Filter all queries by `user_id` using `session.user.id`
 - Include `user_id` when inserting records
+- Use Neon's SQL template literals for queries (e.g., `sql\`SELECT * FROM bottles WHERE user_id = ${userId}\``)
 - Return `{ success: boolean, data?, error? }` format
 
 ### Claude API (JSON responses)
@@ -142,7 +183,7 @@ All configurable values are in `lib/config.ts`:
 | Column | Type | Notes |
 |--------|------|-------|
 | id | uuid | Primary key |
-| user_id | uuid | References auth.users(id) |
+| user_id | text | User ID from Auth.js (Google sub claim) |
 | brand | text | Required |
 | product_name | text | Required |
 | category | text | whisky, gin, rum, vodka, etc. |
@@ -150,29 +191,32 @@ All configurable values are in `lib/config.ts`:
 | quantity | integer | Default 1 |
 | abv, size_ml | numeric | Optional |
 | image_url | text | Base64 stored (for now) |
+| created_at | timestamp | Auto-generated |
+| updated_at | timestamp | Auto-updated |
 
 ### inventory_events
 | Column | Type | Notes |
 |--------|------|-------|
 | id | uuid | Primary key |
-| user_id | uuid | References auth.users(id) |
+| user_id | text | User ID from Auth.js |
 | bottle_id | uuid | Foreign key to bottles |
 | event_type | text | 'added', 'finished', 'adjusted' |
 | quantity_change | integer | +1 for add, -1 for finish |
 | event_date | timestamp | When it happened |
 
-### Row Level Security (RLS)
-Both tables have RLS enabled. Users can only SELECT, INSERT, UPDATE, DELETE their own rows (where `user_id = auth.uid()`).
+### Security
+User data isolation is enforced at the application level. All API routes filter queries by `session.user.id` to ensure users only access their own data.
 
 ## Common Tasks
 
 ### Adding a new API endpoint
 1. Create folder in `app/api/[name]/`
 2. Create `route.ts` with HTTP method handlers
-3. Use `createClient()` from `@/lib/supabase-server`
-4. Check auth with `supabase.auth.getUser()`
-5. Filter by `user_id`
-6. Return JSON with `{ success, data/error }`
+3. Import `auth` from `@/lib/auth` and `sql` from `@/lib/neon`
+4. Check auth with `const session = await auth()`
+5. Filter queries by `session.user.id`
+6. Use SQL template literals for queries
+7. Return JSON with `{ success, data/error }`
 
 ### Adding a new page
 1. Create folder in `app/[name]/`
@@ -195,25 +239,40 @@ Both tables have RLS enabled. Users can only SELECT, INSERT, UPDATE, DELETE thei
 
 Required in `.env.local` (and Vercel):
 ```
+# Anthropic API (for Claude Vision and recipes)
 ANTHROPIC_API_KEY=sk-ant-xxx
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
+
+# Neon Database
+DATABASE_URL=postgresql://user:pass@host.neon.tech/neondb?sslmode=require
+
+# Auth.js
+AUTH_SECRET=your-generated-secret
+AUTH_GOOGLE_ID=your-google-client-id.apps.googleusercontent.com
+AUTH_GOOGLE_SECRET=your-google-client-secret
+```
+
+Generate AUTH_SECRET with:
+```bash
+openssl rand -base64 32
 ```
 
 ## Deployment Notes
 
 - Push to GitHub triggers Vercel deploy
-- Environment variables must be set in Vercel dashboard
+- Environment variables must be set in Vercel dashboard (DATABASE_URL, AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, ANTHROPIC_API_KEY)
 - Redeploy needed after changing env vars
-- Google OAuth redirect URIs needed for both localhost and production
+- Google OAuth redirect URIs needed for both localhost and production:
+  - Development: `http://localhost:3000/api/auth/callback/google`
+  - Production: `https://your-domain.vercel.app/api/auth/callback/google`
 
 ## Known Quirks
 
 1. **Tailwind v4** - Uses `@import "tailwindcss"` not `@tailwind base`
-2. **Supabase types** - Use `as any` for query results to avoid TypeScript errors
+2. **Neon SQL** - Use template literals with `sql` tag, not query builders
 3. **Image storage** - Currently stores base64 in database (not ideal for large scale)
 4. **Claude Haiku** - Wraps JSON in markdown code blocks, need to strip them
 5. **Voice recognition** - Not supported on Firefox, gracefully hides mic button
+6. **Auth.js** - User IDs are Google OAuth sub claims (different from Supabase UUIDs)
 
 ## Testing Locally
 

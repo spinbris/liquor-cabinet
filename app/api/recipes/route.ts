@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { auth } from "@/lib/auth";
+import { sql } from "@/lib/neon";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "@/lib/config";
 
@@ -49,11 +50,8 @@ async function getCocktailImage(cocktailName: string): Promise<string | null> {
 }
 
 export async function GET() {
-  const supabase = await createClient();
-
-  // Get current user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
+  const session = await auth();
+  if (!session?.user) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }
@@ -62,19 +60,12 @@ export async function GET() {
 
   try {
     // Get user's bottles
-    const { data: bottles, error } = await supabase
-      .from("bottles")
-      .select("brand, product_name, category, sub_category")
-      .eq("user_id", user.id)
-      .gt("quantity", 0);
-
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json(
-        { success: false, error: "Failed to load inventory" },
-        { status: 500 }
-      );
-    }
+    const bottles = await sql`
+      SELECT brand, product_name, category, sub_category
+      FROM bottles
+      WHERE user_id = ${session.user.id}
+      AND quantity > 0
+    `;
 
     if (!bottles || bottles.length === 0) {
       return NextResponse.json({
